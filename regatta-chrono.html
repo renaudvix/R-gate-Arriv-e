@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>Régate Chrono — CVS Sévrier</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0a0e1a;--navy2:#111827;--panel:#141c2e;--border:#1e2d4a;
+  --accent:#00c8ff;--accent2:#ff6b00;--green:#00ff88;--red:#ff3355;
+  --yellow:#ffd700;--text:#e8f0fe;--muted:#5a7099;
+}
+html,body{height:100%;background:var(--navy);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden}
+.app{display:flex;flex-direction:column;min-height:100vh;max-width:480px;margin:0 auto}
+.header{background:var(--panel);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+.header-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--accent)}
+.header-sub{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px}
+.race-clock{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--yellow);text-align:right}
+.race-status{font-size:9px;color:var(--accent2);font-family:'JetBrains Mono',monospace;text-align:right}
+.race-bar{background:var(--navy2);border-bottom:1px solid var(--border);padding:8px 12px;display:flex;gap:8px;align-items:center;overflow-x:auto}
+.race-bar span{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.race-chip{padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;background:none;color:var(--muted);white-space:nowrap}
+.race-chip.active{background:var(--accent2);color:#fff;border-color:var(--accent2);font-weight:700}
+.race-chip.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}
+.tabs{display:flex;background:var(--navy2);border-bottom:1px solid var(--border)}
+.tab{flex:1;padding:10px 2px;text-align:center;font-size:10px;font-weight:500;color:var(--muted);cursor:pointer;border:none;background:none;text-transform:uppercase;border-bottom:2px solid transparent}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.badge{display:inline-block;background:var(--accent2);color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:700;margin-left:2px}
+/* Camera */
+.cam-wrap{position:relative;background:#000;aspect-ratio:16/9;width:100%;overflow:hidden}
+.cam-wrap video{width:100%;height:100%;object-fit:cover;display:block}
+.cam-wrap canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.cam-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px}
+.cam-icon{font-size:52px;opacity:.3}
+.fl-label{position:absolute;top:6px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--yellow);background:rgba(0,0,0,.7);padding:3px 10px;border-radius:10px;pointer-events:none}
+.ai-badge{position:absolute;top:6px;right:6px;background:rgba(0,200,255,.15);border:1px solid var(--accent);color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:9px;padding:3px 8px;border-radius:10px;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.detect-flash{position:absolute;inset:0;background:rgba(0,255,136,.2);animation:flash .5s ease-out forwards;pointer-events:none}
+@keyframes flash{from{opacity:1}to{opacity:0}}
+/* Buttons */
+.btn{padding:9px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;transition:all .2s;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.btn-primary{background:var(--accent);color:var(--navy);border-color:var(--accent)}
+.btn-ghost{background:transparent;color:var(--text)}
+.btn-danger{background:transparent;color:var(--red);border-color:var(--red)}
+.btn-orange{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+.btn-green{background:var(--green);color:var(--navy);border-color:var(--green)}
+.btn-sm{padding:6px 10px;font-size:10px}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+/* Start panel */
+.start-panel{background:var(--panel);border-top:1px solid var(--border);padding:10px 12px}
+.start-panel h4{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.start-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.start-item{background:var(--navy);border:1px solid var(--border);border-radius:6px;padding:6px 8px}
+.start-label{font-size:9px;color:var(--accent2);font-family:'JetBrains Mono',monospace;margin-bottom:3px}
+.start-val{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--yellow);min-height:18px}
+.start-val.empty{color:var(--muted);font-size:10px}
+.start-btn{margin-top:5px;width:100%;padding:5px 0;font-size:9px;border-radius:4px;border:1px solid var(--border);background:none;color:var(--accent);cursor:pointer;font-family:'JetBrains Mono',monospace;-webkit-tap-highlight-color:transparent}
+.start-btn.set{border-color:var(--green);color:var(--green)}
+/* Controls */
+.controls{background:var(--panel);border-top:1px solid var(--border);padding:8px 12px;display:flex;gap:6px;align-items:center}
+/* Manual */
+.manual{background:var(--panel);border-top:1px solid var(--border);padding:10px 12px}
+.manual label{font-size:9px;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.class-tabs{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
+.class-tab{padding:4px 10px;border-radius:20px;border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:9px;cursor:pointer;background:none;color:var(--muted);-webkit-tap-highlight-color:transparent}
+.class-tab.active{background:var(--accent);color:var(--navy);border-color:var(--accent);font-weight:700}
+.select-row{display:flex;gap:8px}
+select{flex:1;background:var(--navy);border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;padding:8px;border-radius:6px;outline:none;-webkit-appearance:none}
+/* Results */
+.results-panel{padding:10px;flex:1;overflow-y:auto}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--accent);margin-bottom:8px}
+.empty{text-align:center;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11px;padding:40px 20px;line-height:1.8}
+.result-row{display:grid;grid-template-columns:26px 1fr auto auto;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:5px;animation:slideIn .3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.result-row.g1{border-color:var(--yellow)}.result-row.g2{border-color:#c0c0c0}.result-row.g3{border-color:#cd7f32}
+.pos{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--muted);text-align:center}
+.g1 .pos{color:var(--yellow)}.g2 .pos{color:#c0c0c0}.g3 .pos{color:#cd7f32}
+.boat-num{font-family:'Bebas Neue',sans-serif;font-size:15px}
+.boat-name{font-size:9px;color:var(--muted)}
+.boat-cls{font-size:8px;color:var(--accent2);font-family:'JetBrains Mono',monospace}
+.finish-time{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--green)}
+.elapsed{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;-webkit-tap-highlight-color:transparent}
+.thumb{width:36px;height:27px;object-fit:cover;border-radius:3px;border:1px solid var(--border);cursor:pointer;display:block}
+/* Fleet */
+.fleet-panel{padding:10px;overflow-y:auto;flex:1}
+.fleet-item{display:flex;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:7px 10px;margin-bottom:4px}
+.fleet-item.done{border-color:var(--green);opacity:.7}
+.fleet-num{font-family:'Bebas Neue',sans-serif;font-size:15px}
+.fleet-meta{font-size:9px;color:var(--muted)}
+.fleet-cls{font-size:8px;color:var(--accent2);font-family:'JetBrains Mono',monospace}
+.fleet-ok{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--green)}
+.fleet-wait{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted)}
+input[type=text],input[type=search]{width:100%;background:var(--navy);border:1px solid var(--border);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;padding:8px 10px;border-radius:6px;outline:none;margin-bottom:8px}
+input[type=text]:focus,input[type=search]:focus{border-color:var(--accent)}
+/* Export */
+.export-panel{padding:10px;overflow-y:auto;flex:1}
+.export-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px}
+.export-card h4{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);margin-bottom:4px}
+.export-card p{font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+.export-btns{display:flex;gap:8px;flex-wrap:wrap}
+/* Photo modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal img{max-width:100%;max-height:85vh;border-radius:8px}
+.modal-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;cursor:pointer;border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center}
+/* Toast */
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--green);color:var(--navy);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:10px 22px;border-radius:20px;z-index:400;animation:toastIn .3s ease;white-space:nowrap;max-width:90vw;text-align:center}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+input[type=range]{width:100%;accent-color:var(--accent);margin-top:6px}
+.settings-row{margin-bottom:14px}
+.settings-label{font-size:10px;color:var(--muted);display:block;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="header-title">RÉGATE CHRONO</div>
+      <div class="header-sub" id="hdr-sub">CVS Sévrier · Cata Alpes · 48 bateaux</div>
+    </div>
+    <div>
+      <div class="race-clock" id="clock">--:--:--</div>
+      <div class="race-status" id="race-status">● ARRÊT</div>
+    </div>
+  </div>
+
+  <!-- Race bar -->
+  <div class="race-bar">
+    <span>COURSE :</span>
+    <div id="race-chips"></div>
+    <button class="race-chip add" onclick="addRace()">+ Nouvelle</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" id="tab-camera" onclick="showTab('camera')">📷 Caméra</button>
+    <button class="tab" id="tab-results" onclick="showTab('results')">🏁 Résultats<span id="res-badge"></span></button>
+    <button class="tab" id="tab-fleet" onclick="showTab('fleet')">⛵ Flotte</button>
+    <button class="tab" id="tab-export" onclick="showTab('export')">📤 Export</button>
+  </div>
+
+  <!-- CAMERA TAB -->
+  <div id="pane-camera">
+    <div class="cam-wrap" id="cam-wrap">
+      <div class="cam-placeholder" id="cam-placeholder">
+        <div class="cam-icon">📷</div>
+        <div style="font-size:12px">Appuyez pour activer la caméra</div>
+        <button class="btn btn-primary" onclick="startCamera()">ACTIVER LA CAMÉRA</button>
+      </div>
+      <video id="video" playsinline muted autoplay style="display:none"></video>
+      <canvas id="canvas" style="display:none"></canvas>
+      <div class="fl-label" id="fl-label" style="display:none">LIGNE D'ARRIVÉE</div>
+      <div class="ai-badge" id="ai-badge" style="display:none">IA · ANALYSE…</div>
+      <div class="detect-flash" id="detect-flash" style="display:none"></div>
+    </div>
+
+    <div class="start-panel">
+      <h4>⏱ HEURES DE DÉPART — Course <span id="start-race-num">1</span></h4>
+      <div class="start-grid">
+        <div class="start-item">
+          <div class="start-label">INC 1</div>
+          <div class="start-val empty" id="start-INC1">—</div>
+          <button class="start-btn" id="startbtn-INC1" onclick="setStart('INC 1')">🚦 Départ</button>
+        </div>
+        <div class="start-item">
+          <div class="start-label">INC 3</div>
+          <div class="start-val empty" id="start-INC3">—</div>
+          <button class="start-btn" id="startbtn-INC3" onclick="setStart('INC 3')">🚦 Départ</button>
+        </div>
+        <div class="start-item">
+          <div class="start-label">F16</div>
+          <div class="start-val empty" id="start-F16">—</div>
+          <button class="start-btn" id="startbtn-F16" onclick="setStart('F16')">🚦 Départ</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-primary" id="btn-race" onclick="toggleRace()">▶ ACTIVER</button>
+      <button class="btn btn-ghost btn-sm" id="btn-cam" onclick="toggleCamera()">Cam on</button>
+      <div style="flex:1"></div>
+      <span style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace" id="count-label">0/48</span>
+    </div>
+
+    <div class="manual">
+      <label>PASSAGE MANUEL — occultation / correction</label>
+      <div class="class-tabs" id="filter-tabs">
+        <button class="class-tab active" onclick="setFilter('ALL',this)">ALL</button>
+        <button class="class-tab" onclick="setFilter('INC 1',this)">INC 1</button>
+        <button class="class-tab" onclick="setFilter('INC 3',this)">INC 3</button>
+        <button class="class-tab" onclick="setFilter('F16',this)">F16</button>
+      </div>
+      <div class="select-row">
+        <select id="boat-select"><option value="">— Sélectionner un bateau —</option></select>
+        <button class="btn btn-primary" onclick="manualFinish()">🏁</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS TAB -->
+  <div id="pane-results" style="display:none">
+    <div class="results-panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="section-title">ARRIVÉES — C<span id="res-race-num">1</span></div>
+        <button class="btn btn-danger btn-sm" onclick="clearFinishes()">✕ Effacer</button>
+      </div>
+      <div class="class-tabs">
+        <button class="class-tab active" onclick="setResultFilter('ALL',this)">ALL</button>
+        <button class="class-tab" onclick="setResultFilter('INC 1',this)">INC 1</button>
+        <button class="class-tab" onclick="setResultFilter('INC 3',this)">INC 3</button>
+        <button class="class-tab" onclick="setResultFilter('F16',this)">F16</button>
+      </div>
+      <div id="results-list"></div>
+    </div>
+  </div>
+
+  <!-- FLEET TAB -->
+  <div id="pane-fleet" style="display:none">
+    <div class="fleet-panel">
+      <div class="section-title">FLOTTE — 48 BATEAUX</div>
+      <input type="search" placeholder="🔍 Numéro ou skipper…" oninput="renderFleet(this.value)" id="fleet-search"/>
+      <div class="class-tabs">
+        <button class="class-tab active" onclick="setFleetFilter('ALL',this)">ALL (48)</button>
+        <button class="class-tab" onclick="setFleetFilter('INC 1',this)">INC 1 (13)</button>
+        <button class="class-tab" onclick="setFleetFilter('INC 3',this)">INC 3 (12)</button>
+        <button class="class-tab" onclick="setFleetFilter('F16',this)">F16 (23)</button>
+      </div>
+      <div id="fleet-list"></div>
+    </div>
+  </div>
+
+  <!-- EXPORT TAB -->
+  <div id="pane-export" style="display:none">
+    <div class="export-panel">
+      <div class="section-title">EXPORT — Course <span id="exp-race-num">1</span></div>
+
+      <div class="export-card">
+        <h4>📄 PDF Officiel</h4>
+        <p>Feuille de pointage A4 style FFVoile.<br>Partageable via WhatsApp, Mail ou AirDrop.</p>
+        <div class="export-btns">
+          <button class="btn btn-primary" onclick="exportPDF()">📄 PDF & Partager</button>
+        </div>
+      </div>
+
+      <div class="export-card">
+        <h4>💬 WhatsApp — Texte rapide</h4>
+        <p>Classement formaté directement dans WhatsApp.</p>
+        <div class="export-btns">
+          <button class="btn btn-orange" onclick="shareWhatsApp()">💬 Envoyer WhatsApp</button>
+        </div>
+      </div>
+
+      <div class="export-card">
+        <h4>📊 CSV — Toutes les courses</h4>
+        <p>Importable dans Excel ou Google Sheets.</p>
+        <div class="export-btns">
+          <button class="btn btn-ghost" onclick="exportCSV()">💾 Télécharger CSV</button>
+        </div>
+      </div>
+
+      <div class="export-card">
+        <h4>⚙️ Réglages caméra</h4>
+        <div class="settings-row">
+          <label class="settings-label">Position ligne d'arrivée : <span id="line-val">50</span>%</label>
+          <input type="range" min="20" max="80" value="50" oninput="lineY=+this.value;document.getElementById('line-val').textContent=lineY">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Seuil détection mât : <span id="sens-val">60</span>/255</label>
+          <input type="range" min="20" max="120" value="60" oninput="sensitivity=+this.value;document.getElementById('sens-val').textContent=sensitivity">
+        </div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:6px">
+          📌 Placez-vous face à la bouée d'arrivée<br>
+          📐 Ajustez la ligne jaune sur l'axe bouée-comité<br>
+          ☀️ Lumière de dos pour contraste du mât<br>
+          📱 Trépied recommandé pour stabilité
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Photo modal -->
+<div class="modal" id="photo-modal" style="display:none" onclick="closeModal()">
+  <button class="modal-close" onclick="closeModal()">✕</button>
+  <img id="modal-img" src="" alt="Passage"/>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast" style="display:none"></div>
+
+<script>
+// ── Fleet data ──────────────────────────────────────────────────────────────
+const FLEET = {
+  "INC 1":[
+    {id:101,num:"FRA 209",name:"Lecomte François",serie:"Classic-A"},
+    {id:102,num:"FRA 267",name:"Sassolas Milo",serie:"Nacra 15"},
+    {id:103,num:"FRA 035",name:"De Gennes Ophélie",serie:"Classic-A"},
+    {id:104,num:"FRA 238",name:"Hug Arnaud",serie:"Nacra 15"},
+    {id:105,num:"FRA 12",name:"Le Quellec Loïc",serie:"Nacra F20"},
+    {id:106,num:"FRA 101",name:"Le Goulias Michel",serie:"Classic-A"},
+    {id:107,num:"FRA 096",name:"Vignal Ambre",serie:"Nacra 15"},
+    {id:108,num:"FRA 600",name:"Bonnefond Pierre-Jean",serie:"Classic-A"},
+    {id:109,num:"FRA 1011",name:"Missa Thierry",serie:"Mattia 18 F18"},
+    {id:110,num:"FRA 033",name:"Hrycko Gaetan",serie:"Nacra F18"},
+    {id:111,num:"FRA 783",name:"Cousin Olivier",serie:"Cirrus B1 F18"},
+    {id:112,num:"FRA 275",name:"Dornier Romain",serie:"Nacra 15"},
+    {id:113,num:"GBR 77",name:"Gelibert Nathan",serie:"Classic-A"},
+  ],
+  "INC 3":[
+    {id:301,num:"FRA 130",name:"Veaux Roger",serie:"Dart Sting Solo"},
+    {id:302,num:"FRA 969",name:"Blanc Alix",serie:"SL15.5"},
+    {id:303,num:"FRA 1082",name:"Pochet Hadrien",serie:"SL15.5"},
+    {id:304,num:"FRA 6",name:"Venant-Valery Tom",serie:"Topaz 16S"},
+    {id:305,num:"FRA 117148",name:"Perrier Christophe",serie:"Hobie 16 Spin."},
+    {id:306,num:"FRA 114067",name:"Genin Jeremy",serie:"Hobie 16 Spin."},
+    {id:307,num:"FRA 1204",name:"Martin Stanislas",serie:"SL16"},
+    {id:308,num:"FRA 1195",name:"Amedeo Mann",serie:"SL16"},
+    {id:309,num:"FRA 1054",name:"Martin Juliette",serie:"SL15.5"},
+    {id:310,num:"FRA 8",name:"Perrier Antoine",serie:"Topaz 16S"},
+    {id:311,num:"FRA 2",name:"Girard Cédric",serie:"Topaz 16S"},
+    {id:312,num:"FRA 7",name:"Perrier Clémence",serie:"Topaz 16S"},
+  ],
+  "F16":[
+    {id:201,num:"FRA 1",name:"Le Chagelier Emmanuel",serie:"F16"},
+    {id:202,num:"SWE 555",name:"Windsibe Piper",serie:"F16"},
+    {id:203,num:"FRA 282",name:"Alonso Bastien",serie:"F16"},
+    {id:204,num:"FRA 2885",name:"Verdier Matthieu",serie:"F16"},
+    {id:205,num:"REL 80",name:"Benet Leon",serie:"F16"},
+    {id:206,num:"FRA 764",name:"Laszlo Alexandre",serie:"F16"},
+    {id:207,num:"FRA 2025",name:"Princivalle Quentin",serie:"F16"},
+    {id:208,num:"REL 94",name:"Calvet Denis",serie:"F16"},
+    {id:209,num:"FRA 1308",name:"Dacquy Xavier",serie:"F16"},
+    {id:210,num:"SCP 087",name:"Dacquy Nathalie",serie:"F16"},
+    {id:211,num:"SUI 512",name:"Scheidegger Pierre",serie:"F16"},
+    {id:212,num:"FRA 104",name:"Taffy Francois",serie:"F16"},
+    {id:213,num:"FRA 222",name:"Gaede Adrienne",serie:"F16"},
+    {id:214,num:"FRA 8109",name:"Gamba Stephane",serie:"F16"},
+    {id:215,num:"FRA 7909",name:"Collin Arnaud",serie:"F16"},
+    {id:216,num:"FRA 89",name:"Provost Gilles",serie:"F16"},
+    {id:217,num:"SUI 513",name:"Ozanne Oscar",serie:"F16"},
+    {id:218,num:"FRA 355",name:"Fouquereau Pierce",serie:"F16"},
+    {id:219,num:"FRA 560",name:"Bourdon Jean-Jacques",serie:"F16"},
+    {id:220,num:"FRA 5602",name:"Tanguard Francois",serie:"F16"},
+    {id:221,num:"SUI 51",name:"Garnier Arthur",serie:"F16"},
+    {id:222,num:"SUI 88",name:"Philipps Cyril",serie:"F16"},
+    {id:223,num:"SUI 88b",name:"Toussaint Adrien",serie:"F16"},
+  ]
+};
+const ALL_BOATS = Object.entries(FLEET).flatMap(([cls,arr])=>arr.map(b=>({...b,cls})));
+
+// ── State ───────────────────────────────────────────────────────────────────
+let races = [{num:1, date:today(), starts:{"INC 1":null,"INC 3":null,"F16":null}, finishes:[]}];
+let currentRace = 0;
+let raceRunning = false;
+let cameraOn = false;
+let stream = null;
+let animFrame = null;
+let aiProcessing = false;
+let lastAnalyze = 0;
+let lineY = 50;
+let sensitivity = 60;
+let filterClass = "ALL";
+let resultFilter = "ALL";
+let fleetFilter = "ALL";
+
+function today(){ return new Date().toLocaleDateString("fr-FR"); }
+function race(){ return races[currentRace]; }
+
+function fmtTime(d){
+  return d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+}
+function fmtTimeShort(d){
+  if(!d) return "—";
+  const s=d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  return s.replace(":","h").replace(":"," '");
+}
+function fmtElapsed(ms){
+  const s=Math.floor(ms/1000),m=Math.floor(s/60);
+  return m===0?`+${s}s`:`+${m}m${String(s%60).padStart(2,"0")}s`;
+}
+
+// ── Clock ───────────────────────────────────────────────────────────────────
+setInterval(()=>{
+  document.getElementById("clock").textContent = fmtTime(new Date());
+},500);
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+function showTab(name){
+  ["camera","results","fleet","export"].forEach(t=>{
+    document.getElementById("pane-"+t).style.display = t===name?"":"none";
+    document.getElementById("tab-"+t).classList.toggle("active",t===name);
+  });
+  if(name==="results") renderResults();
+  if(name==="fleet") renderFleet("");
+  if(name==="export"){ document.getElementById("exp-race-num").textContent=race().num; renderExportSummary(); }
+}
+
+// ── Race management ─────────────────────────────────────────────────────────
+function addRace(){
+  races.push({num:races.length+1,date:today(),starts:{"INC 1":null,"INC 3":null,"F16":null},finishes:[]});
+  currentRace=races.length-1;
+  raceRunning=false;
+  updateRaceUI();
+  showToast("📋 Course "+race().num+" créée");
+}
+function switchRace(i){
+  currentRace=i; raceRunning=false; updateRaceUI();
+}
+function updateRaceUI(){
+  // chips
+  const c=document.getElementById("race-chips");
+  c.innerHTML="";
+  races.forEach((r,i)=>{
+    const b=document.createElement("button");
+    b.className="race-chip"+(i===currentRace?" active":"");
+    b.textContent=`C${r.num} · ${r.finishes.length} arr.`;
+    b.onclick=()=>switchRace(i);
+    c.appendChild(b);
+  });
+  // start times
+  document.getElementById("start-race-num").textContent=race().num;
+  document.getElementById("res-race-num").textContent=race().num;
+  ["INC 1","INC 3","F16"].forEach(cls=>{
+    const key=cls.replace(" ","");
+    const el=document.getElementById("start-"+key);
+    const btn=document.getElementById("startbtn-"+key);
+    if(race().starts[cls]){
+      el.textContent=fmtTime(race().starts[cls]);
+      el.className="start-val";
+      btn.textContent="✓ Redéfinir"; btn.className="start-btn set";
+    } else {
+      el.textContent="—"; el.className="start-val empty";
+      btn.textContent="🚦 Départ"; btn.className="start-btn";
+    }
+  });
+  // race status
+  document.getElementById("race-status").textContent=raceRunning?"⬤ EN COURSE":"● ARRÊT";
+  document.getElementById("btn-race").textContent=raceRunning?"⏹ PAUSE":"▶ ACTIVER";
+  document.getElementById("btn-race").className="btn "+(raceRunning?"btn-danger":"btn-primary");
+  // count
+  const total=ALL_BOATS.length;
+  document.getElementById("count-label").textContent=race().finishes.length+"/"+total;
+  // badge
+  const n=race().finishes.length;
+  document.getElementById("res-badge").innerHTML=n>0?`<span class="badge">${n}</span>`:"";
+  // select
+  populateSelect();
+}
+
+// ── Start times ─────────────────────────────────────────────────────────────
+function setStart(cls){
+  race().starts[cls]=new Date();
+  showToast("🚦 Départ "+cls+" : "+fmtTime(race().starts[cls]));
+  updateRaceUI();
+}
+
+// ── Race toggle ─────────────────────────────────────────────────────────────
+function toggleRace(){
+  raceRunning=!raceRunning;
+  updateRaceUI();
+  showToast(raceRunning?"▶ Chronométrage actif":"⏹ Pause");
+}
+
+// ── Camera ───────────────────────────────────────────────────────────────────
+async function startCamera(){
+  try {
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:"environment",width:{ideal:1280},height:{ideal:720}},audio:false
+    });
+    const video=document.getElementById("video");
+    video.srcObject=stream; video.style.display="block";
+    await video.play();
+    document.getElementById("cam-placeholder").style.display="none";
+    document.getElementById("canvas").style.display="block";
+    document.getElementById("fl-label").style.display="block";
+    cameraOn=true;
+    document.getElementById("btn-cam").textContent="Cam off";
+    startLoop();
+  } catch(e){
+    showToast("⚠️ Autoriser la caméra dans Safari");
+  }
+}
+function stopCamera(){
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  stream=null; cameraOn=false;
+  cancelAnimationFrame(animFrame);
+  document.getElementById("video").style.display="none";
+  document.getElementById("canvas").style.display="none";
+  document.getElementById("fl-label").style.display="none";
+  document.getElementById("cam-placeholder").style.display="flex";
+  document.getElementById("btn-cam").textContent="Cam on";
+}
+function toggleCamera(){ cameraOn?stopCamera():startCamera(); }
+
+function startLoop(){
+  const video=document.getElementById("video");
+  const canvas=document.getElementById("canvas");
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});
+  function loop(){
+    animFrame=requestAnimationFrame(loop);
+    if(video.readyState<2) return;
+    const W=canvas.width=video.videoWidth||640;
+    const H=canvas.height=video.videoHeight||360;
+    ctx.clearRect(0,0,W,H);
+    const y=Math.round(lineY/100*H);
+    // finish line
+    ctx.save();
+    ctx.strokeStyle="rgba(255,215,0,0.9)";ctx.lineWidth=2;ctx.setLineDash([10,6]);
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+    // buoy
+    ctx.save();
+    ctx.fillStyle="#ffd700";ctx.beginPath();ctx.arc(W-14,y,9,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle="#0a0e1a";ctx.font="bold 10px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText("⚓",W-14,y);ctx.restore();
+    // mast detection
+    if(raceRunning){
+      const band=4;
+      const imgData=ctx.getImageData(0,Math.max(0,y-band),W,band*2);
+      const dark=[];
+      for(let x=20;x<W-20;x++){
+        let dc=0;
+        for(let r=0;r<imgData.height;r++){
+          const idx=(r*imgData.width+x)*4;
+          if((imgData.data[idx]+imgData.data[idx+1]+imgData.data[idx+2])/3<sensitivity) dc++;
+        }
+        dark.push(dc/imgData.height>0.6?1:0);
+      }
+      const mc=dark.reduce((a,v)=>a+v,0);
+      if(mc>2&&mc<40){
+        ctx.save();ctx.fillStyle="rgba(0,255,136,0.25)";
+        dark.forEach((d,i)=>{if(d) ctx.fillRect(i+20,y-band-2,1,band*2+4);});
+        ctx.restore();
+        const now2=Date.now();
+        if(now2-lastAnalyze>1000){lastAnalyze=now2;autoDetect(video,W,H);}
+      }
+    }
+  }
+  loop();
+}
+
+// ── AI detect ───────────────────────────────────────────────────────────────
+async function autoDetect(video,W,H){
+  if(aiProcessing) return;
+  aiProcessing=true;
+  document.getElementById("ai-badge").style.display="block";
+  showFlash();
+  const photo=capturePhoto(video,W,H);
+  const base64=photo.split(",")[1];
+  try{
+    const nums=ALL_BOATS.map(b=>b.num).join(", ");
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",max_tokens:150,
+        messages:[{role:"user",content:[
+          {type:"image",source:{type:"base64",media_type:"image/jpeg",data:base64}},
+          {type:"text",text:`Identifie le numéro de voile (ex: FRA 007, SUI 51). Inscrits: ${nums}. JSON uniquement: {"detected":"FRA 007"} ou {"detected":null}`}
+        ]}]
+      })
+    });
+    const data=await res.json();
+    const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
+    const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+    if(parsed.detected){
+      const b=ALL_BOATS.find(b=>b.num===parsed.detected);
+      if(b) recordFinish(b,photo);
+      else showToast("👁 Détecté: "+parsed.detected+" (non inscrit?)");
+    }
+  }catch(e){console.error(e);}
+  aiProcessing=false;
+  document.getElementById("ai-badge").style.display="none";
+}
+
+function capturePhoto(video,W,H){
+  const c=document.createElement("canvas");
+  c.width=W;c.height=H;
+  c.getContext("2d").drawImage(video,0,0,W,H);
+  return c.toDataURL("image/jpeg",0.75);
+}
+
+function showFlash(){
+  const f=document.getElementById("detect-flash");
+  f.style.display="block";f.style.animation="none";
+  setTimeout(()=>{f.style.animation="flash .5s ease-out forwards";},10);
+  setTimeout(()=>{f.style.display="none";},600);
+}
+
+// ── Record finish ─────────────────────────────────────────────────────────────
+function recordFinish(boat, photo){
+  const t=new Date();
+  if(race().finishes.find(f=>f.boatId===boat.id)){showToast("⚠️ "+boat.num+" déjà enregistré");return;}
+  // auto-capture if no photo provided
+  if(!photo && cameraOn){
+    const v=document.getElementById("video");
+    photo=capturePhoto(v,v.videoWidth||640,v.videoHeight||360);
+  }
+  const startT=race().starts[boat.cls];
+  race().finishes.push({
+    id:Date.now(),boatId:boat.id,num:boat.num,name:boat.name,
+    cls:boat.cls,serie:boat.serie,time:t,
+    elapsed:startT?t-startT:null,photo:photo||null
+  });
+  showToast("🏁 "+boat.num+" — "+fmtTime(t));
+  updateRaceUI();
+  if(document.getElementById("pane-results").style.display!=="none") renderResults();
+}
+
+// ── Manual finish ─────────────────────────────────────────────────────────────
+function manualFinish(){
+  const sel=document.getElementById("boat-select");
+  if(!sel.value||!raceRunning) return;
+  const id=parseInt(sel.value);
+  const boat=ALL_BOATS.find(b=>b.id===id);
+  if(boat){recordFinish(boat,null);sel.value="";}
+}
+
+function setFilter(cls,btn){
+  filterClass=cls;
+  document.querySelectorAll("#filter-tabs .class-tab").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  populateSelect();
+}
+
+function populateSelect(){
+  const sel=document.getElementById("boat-select");
+  const finished=new Set(race().finishes.map(f=>f.boatId));
+  const boats=ALL_BOATS.filter(b=>!finished.has(b.id)&&(filterClass==="ALL"||b.cls===filterClass));
+  sel.innerHTML='<option value="">— Sélectionner un bateau —</option>';
+  boats.forEach(b=>{
+    const o=document.createElement("option");
+    o.value=b.id;o.textContent=`[${b.cls}] ${b.num} · ${b.name}`;
+    sel.appendChild(o);
+  });
+}
+
+// ── Results ──────────────────────────────────────────────────────────────────
+function setResultFilter(cls,btn){
+  resultFilter=cls;
+  document.querySelectorAll("#pane-results .class-tabs .class-tab").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  renderResults();
+}
+
+function renderResults(){
+  document.getElementById("res-race-num").textContent=race().num;
+  const list=document.getElementById("results-list");
+  const fin=resultFilter==="ALL"?race().finishes:race().finishes.filter(f=>f.cls===resultFilter);
+  if(fin.length===0){list.innerHTML='<div class="empty">Aucune arrivée.<br>Utilisez la caméra ou le bouton manuel.</div>';return;}
+  list.innerHTML=fin.map((f,i)=>`
+    <div class="result-row ${i<3?'g'+(i+1):''}">
+      <div class="pos">${i+1}</div>
+      <div>
+        <div class="boat-num">${f.num}</div>
+        <div class="boat-name">${f.name}</div>
+        <div class="boat-cls">${f.cls} · ${f.serie}</div>
+      </div>
+      <div>
+        <div class="finish-time">${fmtTime(f.time)}</div>
+        <div class="elapsed">${f.elapsed?fmtElapsed(f.elapsed):"—"}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+        ${f.photo?`<img src="${f.photo}" class="thumb" onclick="openModal('${f.id}')" alt="photo"/>`:""}
+        <button class="del-btn" onclick="deleteFinish(${f.id})">✕</button>
+      </div>
+    </div>
+  `).join("");
+
+  // DNS list
+  const finished=new Set(race().finishes.map(f=>f.boatId));
+  const waiting=ALL_BOATS.filter(b=>!finished.has(b.id));
+  if(waiting.length>0&&race().finishes.length>0){
+    list.innerHTML+=`<div style="margin-top:12px;margin-bottom:6px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase">En attente (${waiting.length})</div>`;
+    list.innerHTML+=waiting.slice(0,6).map(b=>`
+      <div style="display:flex;justify-content:space-between;background:var(--panel);border-radius:7px;padding:6px 10px;margin-bottom:3px;border:1px solid var(--border);opacity:.5">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:13px">${b.num}</span>
+        <span style="font-size:8px;color:var(--muted)">${b.name} · ${b.cls}</span>
+      </div>
+    `).join("");
+    if(waiting.length>6) list.innerHTML+=`<div style="font-size:9px;color:var(--muted);text-align:center">+${waiting.length-6} autres…</div>`;
+  }
+}
+
+// photo store
+const photoStore={};
+function recordFinishWithPhoto(boat,photo){
+  recordFinish(boat,photo);
+  // photo stored in finishes object directly
+}
+function openModal(id){
+  const f=race().finishes.find(f=>String(f.id)===String(id));
+  if(!f||!f.photo) return;
+  document.getElementById("modal-img").src=f.photo;
+  document.getElementById("photo-modal").style.display="flex";
+}
+function closeModal(){ document.getElementById("photo-modal").style.display="none"; }
+
+function deleteFinish(id){
+  race().finishes=race().finishes.filter(f=>f.id!==id);
+  updateRaceUI(); renderResults();
+}
+function clearFinishes(){ race().finishes=[]; updateRaceUI(); renderResults(); }
+
+// ── Fleet ────────────────────────────────────────────────────────────────────
+function setFleetFilter(cls,btn){
+  fleetFilter=cls;
+  document.querySelectorAll("#pane-fleet .class-tabs .class-tab").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  renderFleet(document.getElementById("fleet-search").value);
+}
+function renderFleet(search){
+  const finished=new Set(race().finishes.map(f=>f.boatId));
+  const boats=ALL_BOATS.filter(b=>{
+    const mc=fleetFilter==="ALL"||b.cls===fleetFilter;
+    const ms=!search||b.num.toLowerCase().includes(search.toLowerCase())||b.name.toLowerCase().includes(search.toLowerCase());
+    return mc&&ms;
+  });
+  document.getElementById("fleet-list").innerHTML=boats.map(b=>{
+    const fin=race().finishes.find(f=>f.boatId===b.id);
+    return `<div class="fleet-item ${fin?"done":""}">
+      <div>
+        <div class="fleet-num">${b.num}</div>
+        <div class="fleet-meta">${b.name}</div>
+        <div class="fleet-cls">${b.cls} · ${b.serie}</div>
+      </div>
+      ${fin?`<span class="fleet-ok">✓ ${fmtTime(fin.time)}</span>`:`<span class="fleet-wait">En course</span>`}
+    </div>`;
+  }).join("");
+}
+
+// ── Export ───────────────────────────────────────────────────────────────────
+function renderExportSummary(){
+  // nothing extra needed
+}
+
+async function exportPDF(){
+  showToast("📄 Génération PDF…");
+  try{
+    if(!window.jspdf){
+      await new Promise((res,rej)=>{
+        const s=document.createElement("script");
+        s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        s.onload=res;s.onerror=rej;document.head.appendChild(s);
+      });
+    }
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const W=210,M=14;let y=M;
+    doc.setFillColor(10,14,26);doc.rect(0,0,W,28,"F");
+    doc.setTextColor(0,200,255);doc.setFontSize(18);doc.setFont("helvetica","bold");
+    doc.text("RÉGATE CHRONO — POINTAGE D'ARRIVÉE",M,11);
+    doc.setTextColor(200,200,200);doc.setFontSize(8);doc.setFont("helvetica","normal");
+    doc.text(`Cercle de Voile Sévrier · Cata Alpes · Course n°${race().num} · ${race().date}`,M,19);
+    y=32;
+    // Start times
+    doc.setFillColor(20,28,46);doc.roundedRect(M,y,W-2*M,18,3,3,"F");
+    doc.setTextColor(255,107,0);doc.setFontSize(8);doc.setFont("helvetica","bold");
+    doc.text("HEURES DE DÉPART",M+4,y+6);
+    ["INC 1","INC 3","F16"].forEach((cls,i)=>{
+      const x=M+4+i*55;
+      doc.setTextColor(150,150,150);doc.setFontSize(7);doc.setFont("helvetica","normal");
+      doc.text(cls,x,y+11);
+      doc.setTextColor(255,215,0);doc.setFontSize(9);doc.setFont("helvetica","bold");
+      doc.text(race().starts[cls]?fmtTimeShort(race().starts[cls]):"—",x,y+17);
+    });
+    y+=24;
+    ["INC 1","INC 3","F16"].forEach(cls=>{
+      const cf=race().finishes.filter(f=>f.cls===cls);
+      if(!cf.length) return;
+      doc.setFillColor(255,107,0);doc.roundedRect(M,y,W-2*M,7,2,2,"F");
+      doc.setTextColor(255,255,255);doc.setFontSize(9);doc.setFont("helvetica","bold");
+      doc.text(cls,M+3,y+5);
+      if(race().starts[cls]) doc.text("Départ: "+fmtTimeShort(race().starts[cls]),M+22,y+5);
+      y+=10;
+      const cols=[8,18,45,52,30,30];
+      const hdrs=["Pos","N° Voile","Skipper","Série","Heure","Tps"];
+      doc.setFillColor(30,45,74);doc.rect(M,y,W-2*M,6,"F");
+      doc.setTextColor(180,210,255);doc.setFontSize(7);doc.setFont("helvetica","bold");
+      let xc=M+2;hdrs.forEach((h,i)=>{doc.text(h,xc,y+4);xc+=cols[i];});
+      y+=7;
+      cf.forEach((f,idx)=>{
+        if(y>270){doc.addPage();y=M;}
+        doc.setFillColor(idx%2===0?20:25,idx%2===0?28:35,idx%2===0?46:55);
+        doc.rect(M,y,W-2*M,6,"F");
+        doc.setTextColor(220,230,255);doc.setFontSize(7);doc.setFont("helvetica","normal");
+        xc=M+2;
+        [String(idx+1),f.num,f.name.substring(0,20),f.serie.substring(0,16),fmtTime(f.time),f.elapsed?fmtElapsed(f.elapsed):"—"]
+          .forEach((v,i)=>{doc.text(v,xc,y+4);xc+=cols[i];});
+        y+=6;
+      });
+      y+=4;
+    });
+    doc.setTextColor(100,130,180);doc.setFontSize(7);
+    doc.text("Généré le "+new Date().toLocaleString("fr-FR")+" · Régate Chrono",M,290);
+    const blob=doc.output("blob");
+    const fname=`regatta-course${race().num}.pdf`;
+    if(navigator.share&&navigator.canShare){
+      const file=new File([blob],fname,{type:"application/pdf"});
+      if(navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:"Pointage Course "+race().num});
+        showToast("✅ PDF partagé !");return;
+      }
+    }
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download=fname;a.click();
+    showToast("✅ PDF téléchargé !");
+  }catch(e){console.error(e);showToast("⚠️ Erreur PDF");}
+}
+
+function shareWhatsApp(){
+  let msg=`🏁 *Pointage Course ${race().num} — Cata Alpes CVS Sévrier*\n📅 ${race().date}\n\n`;
+  ["INC 1","INC 3","F16"].forEach(cls=>{
+    const cf=race().finishes.filter(f=>f.cls===cls);
+    if(!cf.length) return;
+    msg+=`*${cls}*`;
+    if(race().starts[cls]) msg+=` (dép. ${fmtTimeShort(race().starts[cls])})`;
+    msg+="\n";
+    cf.forEach((f,i)=>msg+=`${i+1}. ${f.num} ${f.name} — ${fmtTime(f.time)}${f.elapsed?" "+fmtElapsed(f.elapsed):""}\n`);
+    msg+="\n";
+  });
+  window.open("https://wa.me/?text="+encodeURIComponent(msg),"_blank");
+}
+
+function exportCSV(){
+  const rows=["Course,Classe,Pos,Numéro,Skipper,Série,Heure d'arrivée,Temps écoulé"];
+  races.forEach(rc=>rc.finishes.forEach((f,i)=>
+    rows.push([`Course ${rc.num}`,f.cls,i+1,f.num,f.name,f.serie,fmtTime(f.time),f.elapsed?fmtElapsed(f.elapsed):"-"].join(","))
+  ));
+  const blob=new Blob([rows.join("\n")],{type:"text/csv;charset=utf-8;"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download=`cata-alpes-${today().replace(/\//g,"-")}.csv`;a.click();
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer=null;
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.style.display="block";
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.style.display="none",2500);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+updateRaceUI();
+renderFleet("");
+</script>
+</body>
+</html>
